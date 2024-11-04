@@ -154,9 +154,9 @@ namespace DotsAnimator
             {
                 var normalizedDuration = curState.NormalizedTime;
                 //没有条件，没有退出时间，直接转换成功
-                if (!transitionBlob.HasExitTime || transitionBlob.Conditions.Length == 0)
+                if (!transitionBlob.HasExitTime )
                 {
-                    return true;
+                    return transitionBlob.Conditions.Length == 0;
                 }
 
                 return normalizedDuration >= 1;
