@@ -1,6 +1,7 @@
 ﻿using Unity.Burst.Intrinsics;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace DotsAnimator
 {
@@ -45,7 +46,7 @@ namespace DotsAnimator
             private float CalcTransitionDuration(ref TransitionBlob transitionBlob, float curStateDuration)
             {
                 var duration = transitionBlob.TransitionDuration;
-                if (!transitionBlob.HasFixedDuration)
+                if (!transitionBlob.FixedDuration)
                 {
                     //非固定时间就是百分比
                     duration *= curStateDuration;
@@ -68,12 +69,12 @@ namespace DotsAnimator
 // #if UNITY_EDITOR
                     animatorComponent.AnimatorState.SrcState.Name = layerBlob.States[layerBlob.DefaultStateIndex].Name.ToString();
 // #endif
-                    // Debug.Log($"初始状态 {animatorComponent.AnimatorState.SrcState.Name.ToString()}");
+                    Debug.Log($"初始状态 {animatorComponent.AnimatorState.SrcState.Name.ToString()}");
                     animatorComponent.AnimatorState.SrcState.NormalizedTime = 0;
                     currentStateIndex = layerBlob.DefaultStateIndex;
 
                     ref var state = ref layerBlob.States[animatorComponent.AnimatorState.SrcState.Id];
-                    // Debug.Log($"切换到状态 {state.Name.ToString()}");
+                    Debug.Log($"切换到状态 {state.Name.ToString()}");
                 }
 
                 ref var currentState = ref layerBlob.States[currentStateIndex];
@@ -96,9 +97,9 @@ namespace DotsAnimator
                     animatorComponent.AnimatorState.TransitionState.NormalizedTime += dt / transitionDuration;
                 }
 
-                TryExitTransition(ref animatorComponent);
+                TryExitTransition(ref animatorComponent, ref layerBlob);
                 TryEnterTransition(ref animatorComponent, ref layerBlob, ref parameterBuffer);
-                TryExitTransition(ref animatorComponent);
+                TryExitTransition(ref animatorComponent, ref layerBlob);
             }
 
             private void TryEnterTransition(ref AnimatorComponent animatorComponent, ref LayerBlob layerBlob, ref DynamicBuffer<AnimatorParameterComponent> parameterBuffer)
@@ -111,55 +112,69 @@ namespace DotsAnimator
                 {
                     ref var transition = ref curState.Transitions[i];
 
-                    if (CheckTransitionTimeCompleted(ref transition, animatorComponent.AnimatorState.SrcState) && CheckTransitionCondition(ref transition, ref parameterBuffer))
+
+                    var complete = CheckTransitionTimeCompleted(ref transition, animatorComponent.AnimatorState.SrcState);
+                    var conditionComplete = CheckTransitionCondition(ref transition, ref parameterBuffer);
+                    // Debug.Log($"检查 转换状态  {transition.Name.ToString()}   {complete}  {conditionComplete}");
+                    if (complete && conditionComplete)
                     {
-                        // 可以进入新状态转换
+                        // 可以进入新状态转换 过渡开始
 
                         animatorComponent.AnimatorState.TransitionState.Id = i;
-// #if UNITY_EDITOR
                         animatorComponent.AnimatorState.TransitionState.Name = transition.Name.ToString();
-// #endif
                         animatorComponent.AnimatorState.TransitionState.NormalizedTime = 0;
 
 
-                        //直接切状态
                         animatorComponent.AnimatorState.DstState.Id = transition.DestinationStateIndex;
-// #if UNITY_EDITOR
+                        animatorComponent.AnimatorState.DstState.NormalizedTime = transition.Offset;
                         animatorComponent.AnimatorState.DstState.Name = layerBlob.States[animatorComponent.AnimatorState.DstState.Id].Name.ToString();
-// #endif
-                        ref var state = ref layerBlob.States[animatorComponent.AnimatorState.DstState.Id];
-                        // var dstStateDuration = CalcStateDuration(ref layerBlob.States[ transition.DestinationStateIndex], parameterBuffer);
-                        animatorComponent.AnimatorState.DstState.NormalizedTime = 0;
                         break;
                     }
                 }
             }
 
 
-            private void TryExitTransition(ref AnimatorComponent animatorComponent)
+            private void TryExitTransition(ref AnimatorComponent animatorComponent, ref LayerBlob layerBlob)
             {
                 if (animatorComponent.AnimatorState.TransitionState.Id < 0) return;
-                if (animatorComponent.AnimatorState.TransitionState.NormalizedTime >= 1)
+
+                //没有做过渡，这里暂时不需要
+                ref var curState = ref layerBlob.States[animatorComponent.AnimatorState.SrcState.Id];
+                ref var transition = ref curState.Transitions[animatorComponent.AnimatorState.TransitionState.Id];
+
+                var stateDuration = curState.AnimationLength;
+
+                var duration = transition.TransitionDuration;
+                if (transition.FixedDuration)
                 {
-                    //转换状态完成。设置当前状态信息
+                    duration = stateDuration * transition.TransitionDuration;
+                }
+
+                if (animatorComponent.AnimatorState.TransitionState.NormalizedTime >= duration)
+                {
+                    //过渡完成
                     animatorComponent.AnimatorState.SrcState = animatorComponent.AnimatorState.DstState;
 
                     //清空下个状态和转换状态
                     animatorComponent.AnimatorState.DstState = StateData.MakeDefault();
                     animatorComponent.AnimatorState.TransitionState = StateData.MakeDefault();
                 }
+                
             }
 
             private bool CheckTransitionTimeCompleted(ref TransitionBlob transitionBlob, in StateData curState)
             {
-                var normalizedDuration = curState.NormalizedTime;
                 //没有条件，没有退出时间，直接转换成功
-                if (!transitionBlob.HasExitTime )
+                if (!transitionBlob.HasExitTime)
                 {
-                    return transitionBlob.Conditions.Length == 0;
+                    return transitionBlob.Conditions.Length != 0;
                 }
 
-                return normalizedDuration >= 1;
+                //TODO 过渡先不做
+
+                // Debug.Log($"---------------------{frac}  {transitionBlob.ExitTime} {frac + transitionBlob.ExitTime}");
+                //有ExitTime 就提前切换下个状态
+                return curState.NormalizedTime >= transitionBlob.ExitTime;
             }
 
 
@@ -169,7 +184,7 @@ namespace DotsAnimator
 
                 var result = true;
 // #if UNITY_EDITOR
-//                 var name = transitionBlob.Name.ToString();
+                var name = transitionBlob.Name.ToString();
 // #endif
                 // Debug.Log($"检查状态切换  {name}");
                 for (int i = 0; i < transitionBlob.Conditions.Length && result; i++)
@@ -226,9 +241,9 @@ namespace DotsAnimator
                 switch (condition.ConditionMode)
                 {
                     case ConditionMode.Greater:
-                        return parameter.FloatValue <= condition.Threshold.FloatValue;
-                    case ConditionMode.Less:
                         return parameter.FloatValue >= condition.Threshold.FloatValue;
+                    case ConditionMode.Less:
+                        return parameter.FloatValue <= condition.Threshold.FloatValue;
                 }
 
                 return true;

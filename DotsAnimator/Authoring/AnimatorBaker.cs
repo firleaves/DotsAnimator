@@ -2,8 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Game.ECS;
-using Game.ECS.AnimatorController;
+
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -13,7 +12,6 @@ using UnityEngine;
 
 namespace DotsAnimator.Hybrid
 {
-
     [RequireComponent(typeof(Animator))]
     public class AnimatorBaker : MonoBehaviour
     {
@@ -58,6 +56,7 @@ namespace DotsAnimator.Hybrid
                 };
                 AddComponent<AnimatorComponent>(entity, component);
                 AddAnimatorControllerParameterComponent(entity);
+                Debug.Log("Animator baker complete");
             }
 
 
@@ -156,7 +155,8 @@ namespace DotsAnimator.Hybrid
                 transitionBlob.TransitionDuration = animatorStateTransition.duration;
                 transitionBlob.ExitTime = animatorStateTransition.exitTime;
                 transitionBlob.HasExitTime = animatorStateTransition.hasExitTime;
-                transitionBlob.HasFixedDuration = animatorStateTransition.hasFixedDuration;
+                transitionBlob.FixedDuration = animatorStateTransition.hasFixedDuration;
+                transitionBlob.Offset = animatorStateTransition.offset;
                 transitionBlob.DestinationStateIndex = _animatorControllerInfo.States.IndexOf(animatorStateTransition.destinationState);
             }
 
