@@ -63,18 +63,12 @@ namespace DotsAnimator
                 var currentStateIndex = animatorComponent.AnimatorState.SrcState.Id;
                 if (animatorComponent.AnimatorState.SrcState.Id < 0)
                 {
-                    //进入第一个状态
-
                     animatorComponent.AnimatorState.SrcState.Id = layerBlob.DefaultStateIndex;
-// #if UNITY_EDITOR
                     animatorComponent.AnimatorState.SrcState.Name = layerBlob.States[layerBlob.DefaultStateIndex].Name.ToString();
-// #endif
-                    Debug.Log($"初始状态 {animatorComponent.AnimatorState.SrcState.Name.ToString()}");
                     animatorComponent.AnimatorState.SrcState.NormalizedTime = 0;
                     currentStateIndex = layerBlob.DefaultStateIndex;
 
-                    ref var state = ref layerBlob.States[animatorComponent.AnimatorState.SrcState.Id];
-                    Debug.Log($"切换到状态 {state.Name.ToString()}");
+                    // ref var state = ref layerBlob.States[animatorComponent.AnimatorState.SrcState.Id];
                 }
 
                 ref var currentState = ref layerBlob.States[currentStateIndex];
@@ -82,7 +76,6 @@ namespace DotsAnimator
                 var dt = DeltaTime;
                 animatorComponent.AnimatorState.SrcState.NormalizedTime += dt / currentStateDuration;
 
-                //下个状态
                 if (animatorComponent.AnimatorState.DstState.Id >= 0)
                 {
                     ref var dstState = ref layerBlob.States[animatorComponent.AnimatorState.DstState.Id];
@@ -115,10 +108,8 @@ namespace DotsAnimator
 
                     var complete = CheckTransitionTimeCompleted(ref transition, animatorComponent.AnimatorState.SrcState);
                     var conditionComplete = CheckTransitionCondition(ref transition, ref parameterBuffer);
-                    // Debug.Log($"检查 转换状态  {transition.Name.ToString()}   {complete}  {conditionComplete}");
                     if (complete && conditionComplete)
                     {
-                        // 可以进入新状态转换 过渡开始
 
                         animatorComponent.AnimatorState.TransitionState.Id = i;
                         animatorComponent.AnimatorState.TransitionState.Name = transition.Name.ToString();
@@ -138,7 +129,6 @@ namespace DotsAnimator
             {
                 if (animatorComponent.AnimatorState.TransitionState.Id < 0) return;
 
-                //没有做过渡，这里暂时不需要
                 ref var curState = ref layerBlob.States[animatorComponent.AnimatorState.SrcState.Id];
                 ref var transition = ref curState.Transitions[animatorComponent.AnimatorState.TransitionState.Id];
 
@@ -152,10 +142,9 @@ namespace DotsAnimator
 
                 if (animatorComponent.AnimatorState.TransitionState.NormalizedTime >= duration)
                 {
-                    //过渡完成
+                    //transition complete
                     animatorComponent.AnimatorState.SrcState = animatorComponent.AnimatorState.DstState;
 
-                    //清空下个状态和转换状态
                     animatorComponent.AnimatorState.DstState = StateData.MakeDefault();
                     animatorComponent.AnimatorState.TransitionState = StateData.MakeDefault();
                 }
@@ -164,16 +153,13 @@ namespace DotsAnimator
 
             private bool CheckTransitionTimeCompleted(ref TransitionBlob transitionBlob, in StateData curState)
             {
-                //没有条件，没有退出时间，直接转换成功
+                
                 if (!transitionBlob.HasExitTime)
                 {
                     return transitionBlob.Conditions.Length != 0;
                 }
 
-                //TODO 过渡先不做
-
-                // Debug.Log($"---------------------{frac}  {transitionBlob.ExitTime} {frac + transitionBlob.ExitTime}");
-                //有ExitTime 就提前切换下个状态
+                //TODO transition 
                 return curState.NormalizedTime >= transitionBlob.ExitTime;
             }
 
@@ -183,10 +169,8 @@ namespace DotsAnimator
                 if (transitionBlob.Conditions.Length == 0) return true;
 
                 var result = true;
-// #if UNITY_EDITOR
+
                 var name = transitionBlob.Name.ToString();
-// #endif
-                // Debug.Log($"检查状态切换  {name}");
                 for (int i = 0; i < transitionBlob.Conditions.Length && result; i++)
                 {
                     ref var condition = ref transitionBlob.Conditions[i];
@@ -207,7 +191,6 @@ namespace DotsAnimator
                             result = CheckBoolCondition(param, ref condition);
                             if (result)
                             {
-                                //重置状态
                                 param.BoolValue = false;
                                 parameterBuffer[condition.ParamIndex] = param;
                             }
@@ -224,13 +207,13 @@ namespace DotsAnimator
                 switch (condition.ConditionMode)
                 {
                     case ConditionMode.Greater:
-                        return parameter.IntValue < condition.Threshold.FloatValue;
+                        return parameter.IntValue < condition.Threshold;
                     case ConditionMode.Less:
-                        return parameter.IntValue > condition.Threshold.FloatValue;
+                        return parameter.IntValue > condition.Threshold;
                     case ConditionMode.Equals:
-                        return parameter.IntValue == (int)condition.Threshold.FloatValue;
+                        return parameter.IntValue == (int)condition.Threshold;
                     case ConditionMode.NotEqual:
-                        return parameter.IntValue != (int)condition.Threshold.FloatValue;
+                        return parameter.IntValue != (int)condition.Threshold;
                 }
 
                 return true;
@@ -241,9 +224,9 @@ namespace DotsAnimator
                 switch (condition.ConditionMode)
                 {
                     case ConditionMode.Greater:
-                        return parameter.FloatValue >= condition.Threshold.FloatValue;
+                        return parameter.FloatValue >= condition.Threshold;
                     case ConditionMode.Less:
-                        return parameter.FloatValue <= condition.Threshold.FloatValue;
+                        return parameter.FloatValue <= condition.Threshold;
                 }
 
                 return true;

@@ -51,14 +51,11 @@ namespace DotsAnimator
     [StructLayout(LayoutKind.Explicit)]
     public struct ParameterValue
     {
-        [FieldOffset(0)]
-        public float FloatValue;
+        [FieldOffset(0)] public float FloatValue;
 
-        [FieldOffset(0)]
-        public int IntValue;
+        [FieldOffset(0)] public int IntValue;
 
-        [FieldOffset(0)]
-        public bool BoolValue;
+        [FieldOffset(0)] public bool BoolValue;
 
         public static implicit operator ParameterValue(float f) => new() { FloatValue = f };
         public static implicit operator ParameterValue(int i) => new() { IntValue = i };
@@ -85,58 +82,30 @@ namespace DotsAnimator
 
     public enum ConditionMode
     {
-        /// <summary>
-        ///   <para>The condition is true when the parameter value is true.</para>
-        /// </summary>
         If = 1,
-
-        /// <summary>
-        ///   <para>The condition is true when the parameter value is false.</para>
-        /// </summary>
         IfNot = 2,
-
-        /// <summary>
-        ///   <para>The condition is true when parameter value is greater than the threshold.</para>
-        /// </summary>
         Greater = 3,
-
-        /// <summary>
-        ///   <para>The condition is true when the parameter value is less than the threshold.</para>
-        /// </summary>
         Less = 4,
-
-        /// <summary>
-        ///   <para>The condition is true when parameter value is equal to the threshold.</para>
-        /// </summary>
         Equals = 6,
-
-        /// <summary>
-        ///   <para>The condition is true when the parameter value is not equal to the threshold.</para>
-        /// </summary>
         NotEqual = 7,
     }
 
     public struct Condition
     {
         public int ParamIndex;
-        public ParameterValue Threshold;
+        public float Threshold;
         public ConditionMode ConditionMode;
     }
 
     public struct TransitionBlob
     {
-// #if UNITY_EDITOR
         public BlobString Name;
-// #endif
-
         public int Hash;
-
         public int DestinationStateIndex;
 
-        //有些属性没时间做，是不生效的
         public bool HasExitTime;
         public float ExitTime;
-        public bool HasFixedDuration;
+        public bool FixedDuration;
         public float TransitionDuration;
         public float Offset;
         public BlobArray<Condition> Conditions;
@@ -147,13 +116,9 @@ namespace DotsAnimator
 
     #region LayerInfo
 
-    //暂时就支持速度更改
     public struct StateBlob
     {
-// #if UNITY_EDITOR
         public BlobString Name;
-// #endif
-
         public int NameHash;
         public float Speed;
         public int SpeedMultiplierParameterIndex;
@@ -172,10 +137,10 @@ namespace DotsAnimator
     #endregion
 
 
-    //现在就支持base layer，后面如果需要多层layer再搞，weight现在也不需要
+    //现在就支持base layer
     public struct AnimatorComponent : IComponentData, IEnableableComponent
     {
-        // public BlobAssetReference<ParameterBlob> Parameters;
+        public FixedString512Bytes Name;
         public BlobAssetReference<LayerBlob> Layer;
         public AnimatorStateData AnimatorState;
     }
@@ -209,24 +174,4 @@ namespace DotsAnimator
             Parameter.Value.BoolValue = true;
         }
     }
-
-    // public struct ParameterNameHash2IndexBlob
-    // {
-    //     //x 名字hash值
-    //     //y 参数所在buff的索引
-    //     public BlobArray<int2> Value;
-    // }
-
-    // public struct ParameterNameHash2IndexComponent : IComponentData
-    // {
-    //     public BlobAssetReference<ParameterNameHash2IndexBlob> Table;
-    // }
-
-
-    // public struct GpuAnimationId2AnimatorStateIndexBlob : IComponentData
-    // {
-    //     //x gpuanimation id
-    //     //y animtor state name hash
-    //     public BlobArray<int2> Index2BlobIndex;
-    // }
 }

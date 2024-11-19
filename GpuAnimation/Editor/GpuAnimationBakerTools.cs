@@ -1,16 +1,18 @@
 using System.Collections.Generic;
-using System.Threading;
-using Sirenix.OdinInspector;
+using System.IO;
+using DotsAnimator.GpuAnimation.Runtime;
 using UnityEditor;
 using UnityEngine;
 
-namespace DotsAnimator.GpuAnimation
+namespace DotsAnimator.GpuAnimation.Editor
 {
     public class GpuAnimationBakerTools
     {
-        public GameObject TargetObject;
-
-        public AnimationClip SampleAnimationClip;
+        private class AnimatorClipInfo
+        {
+            public string Name;
+            public AnimationClip Clip;
+        }
 
         [MenuItem("Assets/DotsAnimator/Bake Gpu Animation")]
         public static void ConvertSelectObject()
@@ -19,12 +21,13 @@ namespace DotsAnimator.GpuAnimation
             if (selectedObject != null)
             {
                 string assetPath = AssetDatabase.GetAssetPath(selectedObject);
+                string folderPath = Path.GetDirectoryName(assetPath);
                 if (!string.IsNullOrEmpty(assetPath))
                 {
-                    GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-                    if (prefab != null)
+                    GameObject go = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                    if (go != null)
                     {
-                        Convert(prefab);
+                        Convert(go, folderPath);
                         return;
                     }
                 }
@@ -33,16 +36,16 @@ namespace DotsAnimator.GpuAnimation
             Debug.LogError("Please select a prefab.");
         }
 
-        private static void Convert(GameObject go)
+        private static void Convert(GameObject go, string saveDirectory)
         {
             var animator = go.GetComponent<Animator>();
+
             if (animator == null)
             {
-                throw new System.Exception("GameObject must have an Animator.");
+                throw new System.Exception("GameObject must have an Animator Component.");
             }
 
-            Debug.LogWarning("Only supports baking the default layer animation.");
-
+            Debug.Log("DotsAnimator.GpuAnimation only support baking the default layer .");
 
             var animatorController = animator.runtimeAnimatorController as UnityEditor.Animations.AnimatorController;
             if (animatorController == null)
@@ -52,7 +55,7 @@ namespace DotsAnimator.GpuAnimation
 
             var layer = animatorController.layers[0];
 
-            var animationClips = new List<AnimationClip>();
+            var animatorClipInfos = new List<AnimatorClipInfo>();
             foreach (var childAnimatorState in layer.stateMachine.states)
             {
                 var animationClip = childAnimatorState.state.motion as AnimationClip;
@@ -62,29 +65,77 @@ namespace DotsAnimator.GpuAnimation
                     continue;
                 }
 
-                animationClips.Add(animationClip);
+                animatorClipInfos.Add(new AnimatorClipInfo()
+                {
+                    Name = childAnimatorState.state.name,
+                    Clip = animationClip
+                });
             }
 
+            saveDirectory += $"/{go.name}_GPUAnimation";
+            if (!Directory.Exists(saveDirectory))
+            {
+                Directory.CreateDirectory(saveDirectory);
+            }
 
-            // BakeAnimationTextureArray(animationClips);
+            var animationAssets = new List<AnimationData>();
+            foreach (var animatorClipInfo in animatorClipInfos)
+            {
+                animationAssets.Add(BakeAnimationTexture(go, go.GetComponentInChildren<SkinnedMeshRenderer>(), animatorClipInfo, saveDirectory));
+            }
+
+            ExportGpuAnimationPrefab(go, animationAssets, saveDirectory);
+        }
+
+        private static void ExportGpuAnimationPrefab(GameObject go, List<AnimationData> assets, string savePath)
+        {
+            var target = new GameObject(go.name);
+            target.transform.position = Vector3.zero;
+            target.transform.localScale = go.transform.localScale;
+            target.transform.rotation = go.transform.rotation;
+
+            var targetAnimator = target.GetComponent<Animator>();
+            if (targetAnimator == null)
+            {
+                targetAnimator = target.AddComponent<Animator>();
+            }
+
+            var originalAnimator = go.GetComponent<Animator>();
+            if (originalAnimator != null)
+            {
+                targetAnimator.runtimeAnimatorController = originalAnimator.runtimeAnimatorController;
+            }
+            else
+            {
+                Debug.LogWarning("does not found animator controller");
+            }
+
+            var meshFilter = target.AddComponent<MeshFilter>();
+            var meshRenderer = target.AddComponent<MeshRenderer>();
+
+            meshFilter.sharedMesh = go.GetComponentInChildren<SkinnedMeshRenderer>().sharedMesh;
+            meshRenderer.sharedMaterials = go.GetComponentInChildren<SkinnedMeshRenderer>().sharedMaterials;
+
+
+            var gpuAnimation = target.AddComponent<Runtime.GpuAnimation>();
+            gpuAnimation.AnimationDatas = assets.ToArray();
+
+            PrefabUtility.SaveAsPrefabAsset(target, savePath + $"/{go.name}.prefab");
+            GameObject.DestroyImmediate(target);
         }
 
 
-        // private static Texture2DArray BakeAnimationTextureArray(List<AnimationClip> clips)
-        // {
-        // }
-
-
-        private static Texture2D BakeAnimationTexture(GameObject go, SkinnedMeshRenderer skinnedMeshRenderer, AnimationClip clip, out int textureWidth, out int textureHeight)
+        private static AnimationData BakeAnimationTexture(GameObject go, SkinnedMeshRenderer skinnedMeshRenderer, AnimatorClipInfo clipInfo, string savePath)
         {
             // row = frame, col = vertex
             Mesh bakedMesh = new Mesh();
             int vertexCount = skinnedMeshRenderer.sharedMesh.vertexCount;
-            textureHeight = vertexCount;
+            var textureHeight = vertexCount;
 
+            var clip = clipInfo.Clip;
             float frameInterval = 1.0f / clip.frameRate;
-            textureWidth = Mathf.CeilToInt(clip.length * clip.frameRate);
-            Texture2D animationTexture = new Texture2D(textureHeight, textureHeight, TextureFormat.RGBAHalf, false);
+            var textureWidth = Mathf.CeilToInt(clip.length * clip.frameRate);
+            Texture2D animationTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBAHalf, false);
             animationTexture.filterMode = FilterMode.Point;
 
             for (int frame = 0; frame < textureWidth; frame++)
@@ -103,226 +154,37 @@ namespace DotsAnimator.GpuAnimation
             }
 
             animationTexture.Apply();
-            return animationTexture;
+
+            var asset = ScriptableObject.CreateInstance<AnimationData>();
+            asset.Name = clipInfo.Name;
+            asset.ClipTexture = animationTexture;
+            asset.FrameCount = textureWidth;
+            asset.Loop = clip.isLooping;
+            var path = $"{savePath}/{clipInfo.Name}.asset";
+            AssetDatabase.CreateAsset(asset, path);
+            AssetDatabase.AddObjectToAsset(animationTexture, asset);
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            return AssetDatabase.LoadAssetAtPath<AnimationData>(path);
         }
 
 
-        private static void SampleAnimation(GameObject gameObject)
-        {
-            var skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>();
-
-
-            var combineInstances = new List<CombineInstance>();
-
-            foreach (var skinnedMeshRenderer in skinnedMeshRenderers)
-            {
-                var length = skinnedMeshRenderer.sharedMaterials.Length;
-                for (int i = 0; i < length; i++)
-                {
-                    var ci = new CombineInstance();
-                    ci.mesh = skinnedMeshRenderer.sharedMesh;
-                    ci.subMeshIndex = i;
-                    ci.transform = skinnedMeshRenderer.transform.localToWorldMatrix;
-                    combineInstances.Add(ci);
-                }
-            }
-        }
-
-
-        // [Button]
-        // private void BakerSkinMeshRender()
+        // private static Mesh CombineMesh(GameObject gameObject, SkinnedMeshRenderer skinnedMeshRenderer,string savePath)
         // {
-        //     var skinnedMeshRenderers = TargetObject.GetComponentsInChildren<SkinnedMeshRenderer>();
-        //
-        //     //材质球数组
-        //     List<Material> materials = new List<Material>();
-        //     foreach (var i in skinnedMeshRenderers)
-        //     {
-        //         foreach (var j in i.sharedMaterials)
-        //         {
-        //             materials.Add(j);
-        //         }
-        //     }
-        //
         //     var combines = new List<CombineInstance>();
         //
-        //
-        //     foreach (var skinnedMeshRenderer in skinnedMeshRenderers)
+        //     var length = skinnedMeshRenderer.sharedMaterials.Length;
+        //     for (int i = 0; i < length; i++)
         //     {
-        //         var length = skinnedMeshRenderer.sharedMaterials.Length;
-        //         for (int j = 0; j < length; j++)
-        //         {
-        //             var ci = new CombineInstance();
-        //             ci.mesh = skinnedMeshRenderer.sharedMesh;
-        //             ci.subMeshIndex = j; // 设置材质球索引
-        //             ci.transform = skinnedMeshRenderer.transform.localToWorldMatrix; // 坐标系转换
-        //             combines.Add(ci);
-        //         }
-        //
-        //         // meshFilter.gameObject.SetActive(false);
+        //         var ci = new CombineInstance();
+        //         ci.mesh = skinnedMeshRenderer.sharedMesh;
+        //         ci.subMeshIndex = i;
+        //         ci.transform = skinnedMeshRenderer.transform.localToWorldMatrix;
+        //         combines.Add(ci);
         //     }
-        //
-        //     //材质合并
-        //     var newMaterial = new Material(Shader.Find("Unlit/GpuAnimation"));
-        //
-        //     List<Texture2D> MainTexs = new List<Texture2D>();
-        //     for (int i = 0; i < materials.Count; i++)
-        //     {
-        //         MainTexs.Add(materials[i].GetTexture("_MainTex") as Texture2D);
-        //     }
-        //
-        //     //所有贴图合并到newDiffuseTex这张大贴图上
-        //     var newMainTex = new Texture2D(2048, 2048, TextureFormat.RGBA32, true);
-        //
-        //     Rect[] uvs = newMainTex.PackTextures(MainTexs.ToArray(), 0);
-        //
-        //     newMaterial.SetTexture("_MainTex", newMainTex);
-        //     AssetDatabase.CreateAsset(newMainTex, $"Assets/GPUMeshAnimation/CombineTexture.asset");
-        //
-        //
-        //     // 把计算出来的uv 赋值给网格上面
-        //     // 计算好uvb赋值到到combineInstances[j].mesh.uv
-        //     var oldUV = new List<Vector2[]>();
-        //     Vector2[] uva, uvb;
-        //     for (int j = 0; j < combines.Count; j++)
-        //     {
-        //         //uva = (Vector2[])(combineInstances[j].mesh.uv);
-        //         uva = combines[j].mesh.uv;
-        //         uvb = new Vector2[uva.Length];
-        //         for (int k = 0; k < uva.Length; k++)
-        //         {
-        //             uvb[k] = new Vector2((uva[k].x * uvs[j].width) + uvs[j].x, (uva[k].y * uvs[j].height) + uvs[j].y);
-        //         }
-        //
-        //         //oldUV.Add(combineInstances[j].mesh.uv);
-        //         oldUV.Add(uva);
-        //         combines[j].mesh.uv = uvb;
-        //     }
-        //
-        //     AssetDatabase.CreateAsset(newMaterial, $"Assets/GPUMeshAnimation/Mat.mat");
-        //
-        //     var selfMeshFilter = GetComponent<MeshFilter>();
-        //     selfMeshFilter.sharedMesh = new Mesh();
-        //     selfMeshFilter.sharedMesh.CombineMeshes(combines.ToArray(), true, false);
-        //
-        //     MeshRenderer meshRender = transform.GetComponent<MeshRenderer>();
-        //     if (meshRender == null)
-        //     {
-        //         meshRender = gameObject.AddComponent<MeshRenderer>();
-        //     }
-        //
-        //     // meshRender.sharedMaterials = materials.ToArray();
-        //     meshRender.sharedMaterial = newMaterial;
-        //
-        //     AssetDatabase.CreateAsset(selfMeshFilter.sharedMesh, $"Assets/GPUMeshAnimation/CombineMesh.asset");
-        //
-        //     //重新赋值，以免影响其他对象的Mesh
-        //     for (int i = 0; i < combines.Count; i++)
-        //     {
-        //         combines[i].mesh.uv = oldUV[i];
-        //     }
-        //
-        //     BakeAnimation(selfMeshFilter, newMaterial);
+        //     
+        //     
+        //     
         // }
-
-        // [Button]
-        // private void BakerMeshRender()
-        // {
-        //     var meshFilters = TargetObject.GetComponentsInChildren<MeshFilter>();
-        //     var meshRenders = TargetObject.GetComponentsInChildren<MeshRenderer>();
-        //
-        //     //材质球数组
-        //     List<Material> materials = new List<Material>();
-        //     foreach (var i in meshRenders)
-        //     {
-        //         foreach (var j in i.sharedMaterials)
-        //         {
-        //             materials.Add(j);
-        //         }
-        //     }
-        //
-        //     //网格合并
-        //
-        //     var combines = new List<CombineInstance>();
-        //
-        //
-        //     foreach (var meshFilter in meshFilters)
-        //     {
-        //         var length = meshFilter.GetComponent<MeshRenderer>().sharedMaterials.Length;
-        //         for (int j = 0; j < length; j++)
-        //         {
-        //             var ci = new CombineInstance();
-        //             ci.mesh = meshFilter.sharedMesh;
-        //             ci.subMeshIndex = j; // 设置材质球索引
-        //             ci.transform = meshFilter.transform.localToWorldMatrix; // 坐标系转换
-        //             combines.Add(ci);
-        //         }
-        //
-        //         meshFilter.gameObject.SetActive(false);
-        //     }
-        //
-        //     var selfMeshFilter = GetComponent<MeshFilter>();
-        //     selfMeshFilter.sharedMesh = new Mesh();
-        //     selfMeshFilter.sharedMesh.CombineMeshes(combines.ToArray(), false);
-        //
-        //     MeshRenderer meshRender = transform.GetComponent<MeshRenderer>();
-        //     if (meshRender == null)
-        //     {
-        //         meshRender = gameObject.AddComponent<MeshRenderer>();
-        //     }
-        //
-        //     meshRender.sharedMaterials = materials.ToArray();
-        //
-        //     AssetDatabase.CreateAsset(selfMeshFilter.sharedMesh, $"Assets/GPUMeshAnimation/CombineMesh.asset");
-        // }
-
-        // private void BakeMesh(GameObject source, Mesh targetMesh)
-        // {
-        //     var skinnedMeshRenderer = source.GetComponentInChildren<SkinnedMeshRenderer>();
-        //     skinnedMeshRenderer.BakeMesh(targetMesh);
-        // }
-
-//     [Button]
-//     private void BakeAnimation(MeshFilter mesh, Material material)
-//     {
-//         //水平方向 记录每个顶点的位置信息
-//         //垂直方向记录每个时间节点所有信息
-//
-//         var frameRate = 30f;
-//         int animLength = (int)(frameRate * SampleAnimationClip.length);
-//         material.SetFloat("_AnimLen", SampleAnimationClip.length);
-//         //animLength = Mathf.NextPowerOfTwo(animLength);
-//         int texwidth = mesh.sharedMesh.vertexCount;
-//
-//         material.SetVector("_AnimMap_TexelSize", new Vector4(1f / texwidth, 1, 1, 1));
-//
-//         texwidth = Mathf.NextPowerOfTwo(texwidth);
-//
-//         Texture2D tex = new Texture2D(texwidth, animLength, TextureFormat.RGBAHalf, false);
-//
-//         material.SetTexture("_AnimMap", tex);
-//         for (int i = 0; i < animLength; i++)
-//         {
-//             float time = i / frameRate;
-//             // Thread.Sleep(10);
-//             // Debug.Log($"Time  {time}");
-//             SampleAnimationClip.SampleAnimation(TargetObject, time);
-//             Mesh bakeMesh = Instantiate<Mesh>(mesh.sharedMesh);
-//             BakeMesh(TargetObject, bakeMesh);
-//             for (var j = 0; j < bakeMesh.vertices.Length; j++)
-//             {
-//                 var vertex = bakeMesh.vertices[j];
-//                 // Debug.Log(vertex);
-//                 tex.SetPixel(j, i, new Color(vertex.x, vertex.y, vertex.z));
-//             }
-//         }
-//
-//         SampleAnimationClip.SampleAnimation(TargetObject, 0);
-//         tex.Apply();
-//
-//         AssetDatabase.CreateAsset(tex, $"Assets/GPUMeshAnimation/animation.asset");
-//     }
-// }
     }
 }
-// }
