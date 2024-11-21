@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Unity.Entities;
 using UnityEngine;
 
@@ -11,8 +12,10 @@ namespace DotsAnimator.GpuAnimation.Runtime
 
         private Entity _animatorEntity;
 
-        private void Start()
+        private async void Start()
         {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            
             var dotsAnimatorFactory = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<DotsAnimatorFactory>();
             _animatorEntity = dotsAnimatorFactory.Instantiate(AnimatorName);
 
@@ -35,7 +38,8 @@ namespace DotsAnimator.GpuAnimation.Runtime
                 return;
             }
 
-            var animatorGpuAnimationSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<AnimatorGpuAnimationSystem>();
+            var animatorGpuAnimationSystem = World.DefaultGameObjectInjectionWorld.GetExistingSystemManaged<AnimatorGpuAnimationSystem>();
+            if (animatorGpuAnimationSystem == null) return;
             animatorGpuAnimationSystem.Unbind(_animatorEntity);
 
             World.DefaultGameObjectInjectionWorld.EntityManager.DestroyEntity(_animatorEntity);

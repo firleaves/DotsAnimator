@@ -168,23 +168,6 @@ namespace DotsAnimator.GpuAnimation.Editor
             return AssetDatabase.LoadAssetAtPath<AnimationData>(path);
         }
 
-
-        // private static Mesh CombineMesh(GameObject gameObject, SkinnedMeshRenderer skinnedMeshRenderer,string savePath)
-        // {
-        //     var combines = new List<CombineInstance>();
-        //
-        //     var length = skinnedMeshRenderer.sharedMaterials.Length;
-        //     for (int i = 0; i < length; i++)
-        //     {
-        //         var ci = new CombineInstance();
-        //         ci.mesh = skinnedMeshRenderer.sharedMesh;
-        //         ci.subMeshIndex = i;
-        //         ci.transform = skinnedMeshRenderer.transform.localToWorldMatrix;
-        //         combines.Add(ci);
-        //     }
-        //     
-        //     
-        //     
-        // }
+        
     }
 }
