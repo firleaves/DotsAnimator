@@ -14,7 +14,6 @@ namespace DotsAnimator.GpuAnimation.Runtime
 
         private async void Start()
         {
-            await Task.Delay(TimeSpan.FromSeconds(2));
             
             var dotsAnimatorFactory = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<DotsAnimatorFactory>();
             _animatorEntity = dotsAnimatorFactory.Instantiate(AnimatorName);

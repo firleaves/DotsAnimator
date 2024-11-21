@@ -34,7 +34,6 @@ namespace DotsAnimator.GpuAnimation.Runtime
 
         public void Play(string stateName, float normalizedTime)
         {
-            // Debug.Log(stateName + "   " + normalizedTime);
             if (stateName != _currentAnimationData?.Name)
             {
                 if (_animationDict.TryGetValue(stateName, out var animationData))
