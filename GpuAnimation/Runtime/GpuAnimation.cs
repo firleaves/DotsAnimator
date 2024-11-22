@@ -34,6 +34,7 @@ namespace DotsAnimator.GpuAnimation.Runtime
 
         public void Play(string stateName, float normalizedTime)
         {
+            // 
             if (stateName != _currentAnimationData?.Name)
             {
                 if (_animationDict.TryGetValue(stateName, out var animationData))
@@ -55,7 +56,7 @@ namespace DotsAnimator.GpuAnimation.Runtime
 
             _meshRenderer.GetPropertyBlock(_materialPropertyBlock);
 
-            var time = 0f;
+            var time = normalizedTime;
             if (_currentAnimationData.Loop)
             {
                 time = math.frac(normalizedTime);
@@ -65,7 +66,7 @@ namespace DotsAnimator.GpuAnimation.Runtime
                 time = 1f;
             }
 
-            _animationInfo.x = Mathf.Min(Mathf.FloorToInt(time * _currentAnimationData.FrameCount), _currentAnimationData.FrameCount - 1);
+            _animationInfo.x = Mathf.Min((int)(time * _currentAnimationData.FrameCount), _currentAnimationData.FrameCount - 1);
             _materialPropertyBlock.SetVector(AnimationInfoProp, _animationInfo);
             _meshRenderer.SetPropertyBlock(_materialPropertyBlock);
         }
