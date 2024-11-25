@@ -1,5 +1,8 @@
+using System;
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
+using Random = Unity.Mathematics.Random;
 
 namespace DotsAnimator.Samples
 {
@@ -8,7 +11,7 @@ namespace DotsAnimator.Samples
         private bool _boolValue = false;
         private float _floatValue = 0;
         private int _intValue = 0;
-        
+
 
         public Animator Animator;
 
@@ -16,8 +19,29 @@ namespace DotsAnimator.Samples
         private const string Win = "Win";
         private const string Walk = "Walk";
         private const string Jump = "Jump";
-        
-        
+
+
+        public GameObject Prefab;
+
+
+        public void OnGenerate()
+        {
+            var random = new Random(100);
+            var count = 1;
+            for (int i = 0; i < count; i++)
+            {
+                var go = Instantiate(Prefab);
+                go.transform.position = random.NextFloat3(float3.zero, new float3(10, 0, 20));
+            }
+        }
+
+
+        public void PlayWin()
+        {
+            var system = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<SampleControllerSystem>();
+            system.Play("victory");
+        }
+
         public void OnReset()
         {
             var system = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<SampleControllerSystem>();
@@ -25,13 +49,13 @@ namespace DotsAnimator.Samples
             _boolValue = false;
             _floatValue = 1f;
             _intValue = 0;
-            
+
             system.SetAnimatorParam(AnimationSpeed, ParameterType.Float, _floatValue);
             Animator.SetFloat(AnimationSpeed, _floatValue);
-            
-             system.SetAnimatorParam(Walk, ParameterType.Bool, _boolValue);
+
+            system.SetAnimatorParam(Walk, ParameterType.Bool, _boolValue);
             Animator.SetBool(Walk, _boolValue);
-            
+
             system.SetAnimatorParam(Jump, ParameterType.Int, _intValue);
             Animator.SetInteger(Jump, _intValue);
         }
