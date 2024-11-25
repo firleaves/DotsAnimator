@@ -61,7 +61,7 @@ namespace DotsAnimator
             var paramIndex = GetRuntimeParameterIndex(Hash, in runtimeParameters);
             if (paramIndex == -1)
             {
-                Debug.LogWarning($"没有找到改Parameter位置 {ParameterName.ToString()}");
+                Debug.LogWarning($"does not found parameter {ParameterName.ToString()}");
                 return false;
             }
 

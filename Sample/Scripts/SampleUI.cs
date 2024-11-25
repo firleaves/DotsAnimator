@@ -27,11 +27,11 @@ namespace DotsAnimator.Samples
         public void OnGenerate()
         {
             var random = new Random(100);
-            var count = 1;
+            var count = 1000;
             for (int i = 0; i < count; i++)
             {
                 var go = Instantiate(Prefab);
-                go.transform.position = random.NextFloat3(float3.zero, new float3(10, 0, 20));
+                go.transform.position = random.NextFloat3(float3.zero, new float3(10, 0, 10));
             }
         }
 

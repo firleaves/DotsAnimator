@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 
 namespace DotsAnimator.Samples
@@ -23,6 +24,7 @@ namespace DotsAnimator.Samples
 
         public void Play(string name)
         {
+            var nameHash = new FixedString512Bytes(name).GetHashCode();
             Entities.ForEach((ref AnimatorComponent animatorComponent) =>
                 {
                     ref var states = ref animatorComponent.Layer.Value.States;
@@ -30,11 +32,13 @@ namespace DotsAnimator.Samples
                     for (int i = 0; i < length; i++)
                     {
                         ref var state = ref states[i];
-                        var stateName = state.Name.ToString();
-                        if (stateName == name)
+                        if (nameHash == state.NameHash)
                         {
                             animatorComponent.AnimatorState.SrcState.Id = i;
-                            animatorComponent.AnimatorState.SrcState.Name = stateName;
+                            animatorComponent.AnimatorState.SrcState.NameHash = nameHash;
+#if DOTANIMTOR_DEBUG
+                            animatorComponent.AnimatorState.SrcState.Name = name;
+#endif
                             animatorComponent.AnimatorState.SrcState.NormalizedTime = 0;
 
                             animatorComponent.AnimatorState.DstState = StateData.MakeDefault();

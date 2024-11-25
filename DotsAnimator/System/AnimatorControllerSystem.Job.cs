@@ -64,7 +64,10 @@ namespace DotsAnimator
                 if (animatorComponent.AnimatorState.SrcState.Id < 0)
                 {
                     animatorComponent.AnimatorState.SrcState.Id = layerBlob.DefaultStateIndex;
+                    animatorComponent.AnimatorState.SrcState.NameHash = layerBlob.States[layerBlob.DefaultStateIndex].NameHash;
+#if DOTANIMTOR_DEBUG
                     animatorComponent.AnimatorState.SrcState.Name = layerBlob.States[layerBlob.DefaultStateIndex].Name.ToString();
+#endif
                     animatorComponent.AnimatorState.SrcState.NormalizedTime = 0;
                     currentStateIndex = layerBlob.DefaultStateIndex;
 
@@ -110,15 +113,20 @@ namespace DotsAnimator
                     var conditionComplete = CheckTransitionCondition(ref transition, ref parameterBuffer);
                     if (complete && conditionComplete)
                     {
-
                         animatorComponent.AnimatorState.TransitionState.Id = i;
+                        animatorComponent.AnimatorState.TransitionState.NameHash = transition.NameHash;
+#if DOTANIMTOR_DEBUG
                         animatorComponent.AnimatorState.TransitionState.Name = transition.Name.ToString();
+#endif
                         animatorComponent.AnimatorState.TransitionState.NormalizedTime = 0;
 
 
                         animatorComponent.AnimatorState.DstState.Id = transition.DestinationStateIndex;
                         animatorComponent.AnimatorState.DstState.NormalizedTime = transition.Offset;
+                        animatorComponent.AnimatorState.DstState.NameHash = layerBlob.States[animatorComponent.AnimatorState.DstState.Id].NameHash;
+#if DOTANIMTOR_DEBUG
                         animatorComponent.AnimatorState.DstState.Name = layerBlob.States[animatorComponent.AnimatorState.DstState.Id].Name.ToString();
+#endif
                         break;
                     }
                 }
@@ -148,12 +156,10 @@ namespace DotsAnimator
                     animatorComponent.AnimatorState.DstState = StateData.MakeDefault();
                     animatorComponent.AnimatorState.TransitionState = StateData.MakeDefault();
                 }
-                
             }
 
             private bool CheckTransitionTimeCompleted(ref TransitionBlob transitionBlob, in StateData curState)
             {
-                
                 if (!transitionBlob.HasExitTime)
                 {
                     return transitionBlob.Conditions.Length != 0;
@@ -170,7 +176,7 @@ namespace DotsAnimator
 
                 var result = true;
 
-                var name = transitionBlob.Name.ToString();
+                // var name = transitionBlob.Name.ToString();
                 for (int i = 0; i < transitionBlob.Conditions.Length && result; i++)
                 {
                     ref var condition = ref transitionBlob.Conditions[i];

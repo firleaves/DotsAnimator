@@ -1,8 +1,7 @@
-﻿ #if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -19,7 +18,7 @@ namespace DotsAnimator.Hybrid
         {
             internal class AnimatorControllerInfo
             {
-                //TODO any状态切过来没时间做先不支持
+                public string AnimatorName;
                 public List<AnimatorStateTransition> AnyTransitions;
                 public List<AnimatorState> States;
                 public AnimatorState DefaultState;
@@ -34,7 +33,7 @@ namespace DotsAnimator.Hybrid
 
                 if (animator.runtimeAnimatorController == null)
                 {
-                    Debug.LogError("找不到 animator controller");
+                    Debug.LogError("does not found animator controller");
                     return;
                 }
 
@@ -45,13 +44,14 @@ namespace DotsAnimator.Hybrid
 
                 _animatorControllerInfo = CollectAnimatorInfo(animatorController);
                 var layerBlob = CreateLayerBlob();
-                // var parameterBlob = CreateParameterBlob();
-
 
                 var component = new AnimatorComponent()
                 {
+#if DOTANIMTOR_DEBUG
+                    Name = runtimeController.name,
+#endif
+                    NameHash = new FixedString512Bytes(runtimeController.name).GetHashCode(),
                     Layer = layerBlob,
-                    // Parameters = parameterBlob,
                     AnimatorState = AnimatorStateData.MakeDefault()
                 };
                 AddComponent<AnimatorComponent>(entity, component);
@@ -65,34 +65,13 @@ namespace DotsAnimator.Hybrid
                 var result = new AnimatorControllerInfo();
                 //这里就用base layer
                 var layer = controller.layers[0];
+                result.AnimatorName = controller.name;
                 result.DefaultState = layer.stateMachine.defaultState;
                 result.States = layer.stateMachine.states.Select(state => state.state).ToList();
                 result.Parameters = controller.parameters.ToList();
                 result.AnyTransitions = layer.stateMachine.anyStateTransitions.ToList();
                 return result;
             }
-
-
-            // private void AddNameHash2IndexBlob(Entity entity, List<int2> indexTable)
-            // {
-            //     var builder = new BlobBuilder(Allocator.Temp);
-            //     ref ParameterNameHash2IndexBlob blob = ref builder.ConstructRoot<ParameterNameHash2IndexBlob>();
-            //
-            //     var arrayBuilder = builder.Allocate(ref blob.Value, indexTable.Count);
-            //     for (var i = 0; i < indexTable.Count; i++)
-            //     {
-            //         arrayBuilder[i] = indexTable[i];
-            //     }
-            //
-            //     var result = builder.CreateBlobAssetReference<ParameterNameHash2IndexBlob>(Allocator.Persistent);
-            //
-            //     AddComponent<ParameterNameHash2IndexComponent>(entity, new ParameterNameHash2IndexComponent()
-            //     {
-            //         Table = result
-            //     });
-            //
-            //     builder.Dispose();
-            // }
 
             private BlobAssetReference<LayerBlob> CreateLayerBlob()
             {
@@ -115,15 +94,16 @@ namespace DotsAnimator.Hybrid
 
             private void CreateStateBlob(AnimatorState animatorState, ref BlobBuilder stateBuilder, ref StateBlob stateBlob)
             {
+#if DOTANIMTOR_DEBUG
                 stateBuilder.AllocateString(ref stateBlob.Name, animatorState.name);
-
+#endif
                 if (animatorState.motion is not AnimationClip clip)
                 {
-                    throw new Exception($"状态{animatorState.name}里面没有动画片段文件，请检查animator文件");
+                    throw new Exception($"{animatorState.name} does not has animation clip");
                 }
 
+                stateBlob.NameHash = new FixedString128Bytes(animatorState.name).GetHashCode();
                 stateBlob.AnimationLength = clip.length;
-                stateBlob.NameHash = animatorState.nameHash;
                 stateBlob.Speed = animatorState.speed;
                 stateBlob.SpeedMultiplierParameterIndex = _animatorControllerInfo.Parameters.FindIndex(parameter => parameter.name == animatorState.speedParameter);
 
@@ -148,10 +128,10 @@ namespace DotsAnimator.Hybrid
                     condition.Threshold = originCondition.threshold;
                 }
 
-
+#if DOTSANIMTOR_DEBUG
                 builder.AllocateString(ref transitionBlob.Name, animatorStateTransition.name);
-
-                transitionBlob.Hash = animatorStateTransition.GetHashCode();
+#endif
+                transitionBlob.NameHash = new FixedString512Bytes(animatorStateTransition.name).GetHashCode();
                 transitionBlob.TransitionDuration = animatorStateTransition.duration;
                 transitionBlob.ExitTime = animatorStateTransition.exitTime;
                 transitionBlob.HasExitTime = animatorStateTransition.hasExitTime;
@@ -205,8 +185,6 @@ namespace DotsAnimator.Hybrid
             {
                 var buffer = AddBuffer<AnimatorParameterComponent>(entity);
 
-
-                // var indexTable = new List<int2>();
                 for (int i = 0; i < _animatorControllerInfo.Parameters.Count; i++)
                 {
                     var sourceParam = _animatorControllerInfo.Parameters[i];
@@ -234,16 +212,13 @@ namespace DotsAnimator.Hybrid
                     parameter.NameHash = new FixedString512Bytes(sourceParam.name).GetHashCode();
                     var component = new AnimatorParameterComponent()
                     {
+#if DOTANIMTOR_DEBUG
                         Name = new FixedString512Bytes(sourceParam.name),
+#endif
                         Parameter = parameter,
                     };
-
                     buffer.Add(component);
-
-                    // indexTable.Add(new int2(parameter.NameHash, i));
                 }
-
-                // AddNameHash2IndexBlob(entity, indexTable);
             }
         }
     }

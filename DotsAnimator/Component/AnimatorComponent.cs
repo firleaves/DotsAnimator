@@ -1,12 +1,16 @@
 ﻿using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine;
 
 namespace DotsAnimator
 {
     public struct StateData
     {
+#if DOTANIMTOR_DEBUG
         public FixedString512Bytes Name;
+#endif
+        public int NameHash;
         public int Id;
         public float NormalizedTime;
 
@@ -16,7 +20,10 @@ namespace DotsAnimator
             {
                 Id = -1,
                 NormalizedTime = 0,
-                Name = new FixedString512Bytes()
+                NameHash = 0,
+#if DOTANIMTOR_DEBUG
+                Name = default
+#endif
             };
         }
     }
@@ -99,8 +106,10 @@ namespace DotsAnimator
 
     public struct TransitionBlob
     {
+#if DOTANIMTOR_DEBUG
         public BlobString Name;
-        public int Hash;
+#endif
+        public int NameHash;
         public int DestinationStateIndex;
 
         public bool HasExitTime;
@@ -118,7 +127,9 @@ namespace DotsAnimator
 
     public struct StateBlob
     {
+#if DOTANIMTOR_DEBUG
         public BlobString Name;
+#endif
         public int NameHash;
         public float Speed;
         public int SpeedMultiplierParameterIndex;
@@ -140,15 +151,24 @@ namespace DotsAnimator
     //现在就支持base layer
     public struct AnimatorComponent : IComponentData, IEnableableComponent
     {
+#if DOTANIMTOR_DEBUG
         public FixedString512Bytes Name;
+#endif
+        public int NameHash;
         public BlobAssetReference<LayerBlob> Layer;
         public AnimatorStateData AnimatorState;
+    }
+
+    public struct AnimatorLayerBlobComponent : IComponentData
+    {
     }
 
 
     public struct AnimatorParameterComponent : IBufferElementData
     {
+#if DOTANIMTOR_DEBUG
         public FixedString512Bytes Name;
+#endif
         public ControllerParameter Parameter;
 
         public float FloatValue
